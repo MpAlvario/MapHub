@@ -1,98 +1,91 @@
 <template>
-  <div ref="map" class="monitoreo-map"></div>
+  <div id="map"></div>
 </template>
 
-<script>
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+<script setup>
 
-export default {
-  name: "MonitoreoMap",
+import { onMounted } from "vue"
+import { useMap } from "../composables/useMap"
+import { useBarcos } from "../composables/useBarcos"
+import { useHistorial } from "../composables/useHistorial"
 
-  data(){
-    return{
-      map:null,
-      marcadores:[],
-      intervalo:null
-    }
-  },
-
-  methods:{
-    cargarDatos(){
-      
-      fetch("http://192.168.71.62:8080/datos.php")
-.then(r=>r.text())
-.then(t=>console.log("RESPUESTA RAW:",t))
+let map
 
 
-      fetch("http://192.168.71.62:8080/datos.php")
-      .then(r=>r.json())
-      .then(data=>{
+function popupBase(barco){
+  return `
+    <div>
 
-        // limpiar marcadores anteriores
-        this.marcadores.forEach(m=>this.map.removeLayer(m))
-        this.marcadores=[]
+      <b>${barco.codigo}</b><br>
+      <b>Timestamp:</b> ${barco.timestamp}<br>
+      <b>Velocidad:</b> ${barco.velocidad ?? "N/A"}<br>
+      <b>Rumbo:</b> ${barco.rumbo ?? "N/A"}<br>
+      <b>Clima:</b> ${barco.clima ?? "N/A"}<br>
+      <b>Riesgo:</b> ${barco.riesgo_colision ?? "N/A"}<br>
 
-        data.forEach(d=>{
+      <button class="btn-vermas">
+        Ver más...
+      </button>
 
-          let objeto=(d.objeto||"").trim().toLowerCase()
+     
 
-          let icono=L.icon({
-            iconUrl: objeto==="barco" ? "/barco.png" : "/boya.png",
+      <div id="hist-${barco.codigo}"
+           class="historial-box"
+           style="display:none;">
+        Cargando historial...
+      </div>
 
-            iconSize:[40,40],
-            iconAnchor:[20,40],
-            popupAnchor:[0,-40]
-          })
-
-          let marcador=L.marker(
-            [parseFloat(d.latitud),parseFloat(d.longitud)],
-            {icon:icono}
-          )
-          .addTo(this.map)
-          .bindPopup(`
-            <b>Cámara:</b> ${d.camera_code}
-            <br><b>Objeto:</b> ${d.objeto}
-            <br><b>Velocidad:</b> ${d.velocidad} nudos
-            <br><b>Rumbo:</b> ${d.rumbo}°
-            <br><b>Clima:</b> ${d.clima}
-            <br><b>Riesgo:</b> ${d.riesgo_colision}
-          `)
-
-          this.marcadores.push(marcador)
-        })
-
-      })
-    }
-  },
-
-  mounted(){
-
-    this.map=L.map(this.$refs.map)
-    .setView([19.4,-95.6],9)
-
-    L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-    ).addTo(this.map)
-
-    this.cargarDatos()
-
-    this.intervalo=setInterval(()=>{
-      this.cargarDatos()
-    },10000)
-  },
-
-  beforeUnmount(){
-    if(this.intervalo){
-      clearInterval(this.intervalo)
-    }
-  }
+    </div>
+  `
 }
+
+
+
+onMounted(() => {
+
+  const { crearMapa } = useMap()
+  map = crearMapa("map")
+
+  const historial = useHistorial(map)
+
+  function eventosPopup(e, barco){
+
+  const popupEl = e.popup.getElement()
+
+  popupEl
+    .querySelector(".btn-vermas")
+    ?.addEventListener("click", () =>
+      historial.verHistorial(barco.codigo)
+    )
+
+  
+}
+
+
+  const barcos = useBarcos(
+    map,
+    popupBase,
+    eventosPopup
+  )
+
+  barcos.cargarBarcos()
+
+  setInterval(() => {
+  barcos.cargarBarcos()
+  historial.actualizarHistorialSeleccionado()
+}, 5000)
+
+  setTimeout(() => {
+    map.invalidateSize()
+  }, 200)
+
+})
+
 </script>
 
-<style>
-.monitoreo-map{
-  height:100vh;
-  width:100%;
+<style scoped>
+#map {
+  height: 100vh;
+  width: 100%;
 }
 </style>
