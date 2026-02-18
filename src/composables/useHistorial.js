@@ -21,37 +21,28 @@ export function useHistorial(map){
 
     barcoSeleccionado = codigo
 
-    const box = document.getElementById("hist-" + codigo)
-    if(!box) return
-
-    box.style.display = "block"
-    box.innerHTML = "Cargando historial..."
-
     try{
 
       console.log("CODIGO ENVIADO:", codigo)
 
-    const res = await fetch(
-  "http://192.168.71.16:8080/proyecto/api_historial.php?codigo="
-  + encodeURIComponent(codigo)
-  + "&ts="
-  + Date.now()
-)
-
+      const res = await fetch(
+        "http://192.168.71.54:8080/proyecto/api_historial.php?codigo="
+        + encodeURIComponent(codigo)
+        + "&ts="
+        + Date.now()
+      )
 
       const json = await res.json()
 
       if(!json.ok){
-        box.innerHTML = "Error: " + json.error
-        return
+        return "Error: " + json.error
       }
 
       if(json.historial.length === 0){
-        box.innerHTML = "Sin historial todavía."
-        return
+        return "Sin historial todavía."
       }
 
-      box.innerHTML = json.historial.map((p,i)=>`
+      const html = json.historial.map((p,i)=>`
         <div class="historial-item">
           <b>#${i+1}</b><br>
           ${p.timestamp}<br>
@@ -81,9 +72,11 @@ export function useHistorial(map){
         )
       }
 
+      return html
+
     }catch(err){
       console.error(err)
-      box.innerHTML = "Error cargando historial"
+      return "Error cargando historial"
     }
   }
 

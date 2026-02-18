@@ -7,7 +7,7 @@ export function useBarcos(map, popupBase, eventosPopup) {
 
   async function cargarBarcos() {
 
-    const res = await fetch("http://192.168.71.16:8080/proyecto/api_barco.php?ts=" + Date.now())
+    const res = await fetch("http://192.168.71.54:8080/proyecto/api_barco.php?ts=" + Date.now())
     const json = await res.json()
 
     if (!json.ok) return
@@ -20,7 +20,7 @@ export function useBarcos(map, popupBase, eventosPopup) {
       if (markers[barco.codigo]) {
 
         markers[barco.codigo].setLatLng([lat, lon])
-        
+
   //si el popup esta abierto no se borra
        if (!markers[barco.codigo].isPopupOpen()) {
         markers[barco.codigo]
