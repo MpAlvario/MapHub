@@ -1,36 +1,46 @@
 <template>
-  <div class="map-wrapper">
-    
-<div class="panel" v-show="panelActivo === 'incidencias'">
-      <h3>🚨 Incidencias - Veracruz</h3>
+  <div class="mapa-rutas-main-container">
+    <div class="map-wrapper">
+      
+      <div class="panel" v-show="panelActivo === 'incidencias'">
+        <h3>🚨 Incidencias - Veracruz</h3>
+        <select v-model="tipo">
+          <option value="todos">Todos</option>
+          <option value="choque">Choque</option>
+          <option value="atropellamiento">Atropellamiento</option>
+          <option value="robo">Robo</option>
+          <option value="asalto">Asalto</option>
+          <option value="incendio">Incendio</option>
+          <option value="inundacion">Inundación</option>
+          <option value="volcadura">Volcadura</option>
+          <option value="vehiculo_descompuesto">Vehículo descompuesto</option>
+        </select>
 
-      <select v-model="tipo">
-        <option value="todos">Todos</option>
-        <option value="choque">Choque</option>
-        <option value="atropellamiento">Atropellamiento</option>
-        <option value="robo">Robo</option>
-        <option value="asalto">Asalto</option>
-        <option value="incendio">Incendio</option>
-        <option value="inundacion">Inundación</option>
-        <option value="volcadura">Volcadura</option>
-        <option value="vehiculo_descompuesto">Vehículo descompuesto</option>
-      </select>
+        <select v-model="minutos">
+          <option value="30">30 min</option>
+          <option value="60">1 hora</option>
+          <option value="180">3 horas</option>
+          <option value="720">12 horas</option>
+          <option value="1440">24 horas</option>
+        </select>
 
-      <select v-model="minutos">
-        <option value="30">30 min</option>
-        <option value="60">1 hora</option>
-        <option value="180">3 horas</option>
-        <option value="720">12 horas</option>
-        <option value="1440">24 horas</option>
-      </select>
+        <button @click="refrescarTodo">Actualizar</button>
+        <div class="info" v-html="info"></div>
+      </div>
 
-      <button @click="refrescarTodo">Actualizar</button>
+      <div ref="mapContainer" class="map"></div>
 
-      <div class="info" v-html="info"></div>
+      <button class="btn-dashboard" @click="dashVisibleLocal = true">📊 Estadísticas</button>
+
+      <DashboardModal 
+        v-model:visible="dashVisibleLocal" 
+        api-url="http://192.168.71.200:8080/terrestre2/api_incidencias.php?minutos=1440" 
+      />
+
+      <LeyendaIncidencias v-if="props.vistaActiva !== 'heatmap'" />
     </div>
-
-    <div ref="mapContainer" class="map"></div>
-  <LeyendaIncidencias />
+    
+    <div class="bottom-bar-global"></div>
   </div>
 </template>
 
@@ -42,13 +52,31 @@ import { useRouting }      from "../composables/useRouting"
 import { useMapPatrullas } from "../composables/usePatrullas"
 import { useIncidencias }  from "../composables/useIncidencias"
 import { useMapHeatmap }   from "../composables/useHeatmap"
-import LeyendaIncidencias from "../components/LeyendaIncidencias.vue"
+import { useCluster }      from "../composables/useCluster"          // ← NUEVO
+import LeyendaIncidencias  from "../components/LeyendaIncidencias.vue"
+import DashboardModal from "./DashboardModal.vue"
+
 
 const props = defineProps({
-  activo:      { type: Boolean, default: false },
-  panelActivo: { type: String,  default: null  },
-  vistaActiva: { type: String,  default: 'markers' }
+  activo:       { type: Boolean, default: false },
+  panelActivo:  { type: String,  default: null  },
+  vistaActiva:  { type: String,  default: 'markers' },
+  dashVisible:  { type: Boolean, default: false } // Se llama dashVisible
+})
 
+// Cambiamos el nombre de la variable a dashVisibleLocal para que coincida con tu HTML
+const dashVisibleLocal = ref(props.dashVisible)
+
+// 1. Escuchar cambios del padre (Navbar -> App -> Mapa)
+watch(() => props.dashVisible, (newVal) => {
+  dashVisibleLocal.value = newVal
+})
+
+// 2. Avisar al padre cuando se cierra el modal localmente
+watch(dashVisibleLocal, (newVal) => {
+  if (newVal !== props.dashVisible) {
+    emit('update:dashboardVisible', newVal) 
+  }
 })
 
 const mapContainer = ref(null)
@@ -57,7 +85,6 @@ const minutos = ref("1440")
 const info    = ref("Cargando...")
 const hayRuta = ref(false)
 
-// Flag para saber si ya se hizo la carga inicial
 let cargaInicialHecha = false
 let autoRefresh = null
 
@@ -74,28 +101,52 @@ const { asignarPatrullaAPI, cargarPatrullasVisual } = useMapPatrullas(
   () => cargarIncidencias(tipo, minutos)
 )
 
+// Vista markers — sin cambios
 const { cargarIncidencias, colorPorSeveridad } = useIncidencias(map, markersLayer, trazarRuta, asignarPatrullaAPI, miUbicacion, miMarker)
 
+// Vista heatmap — sin cambios
 const { heatLayer, cargarHeatmap } = useMapHeatmap(map)
 
-//  FIX PRINCIPAL: cuando el componente se vuelve visible
-// 1. Invalidar tamaño del mapa
-// 2. Cargar incidencias + patrullas + heatmap (refrescarTodo)
-// 3. Arrancar autoRefresh
+// ── Vista cluster — NUEVO ────────────────────────────────────────
+const {
+  clusterLayer,
+  inicializarCluster,
+  cargarIncidenciasCluster,
+  mostrarCluster,
+  ocultarCluster,
+  destruirCluster,
+} = useCluster(map, trazarRuta, asignarPatrullaAPI, miUbicacion, miMarker)
+// ────────────────────────────────────────────────────────────────
+
+// ── Helper: oculta las 3 capas y muestra solo la activa ─────────
+function aplicarVista(vista) {
+  if (!map.value) return
+
+  // Ocultar todo
+  if (markersLayer.value  && map.value.hasLayer(markersLayer.value))  map.value.removeLayer(markersLayer.value)
+  if (heatLayer.value     && map.value.hasLayer(heatLayer.value))     map.value.removeLayer(heatLayer.value)
+  ocultarCluster()
+
+  // Mostrar solo la vista activa
+  if (vista === 'heatmap') {
+    if (heatLayer.value) map.value.addLayer(heatLayer.value)
+  } else if (vista === 'cluster') {
+    mostrarCluster()
+  } else {
+    // 'markers' (default)
+    if (markersLayer.value) map.value.addLayer(markersLayer.value)
+  }
+}
+
 watch(() => props.activo, async (val) => {
   if (val && map.value) {
     await nextTick()
     invalidateSize()
-
-    // Cargar todo al hacerse visible
     await refrescarTodo()
-
-    // Arrancar autoRefresh si no está corriendo
     if (!autoRefresh) {
       autoRefresh = setInterval(refrescarTodo, 10000)
     }
   } else {
-    // Pausar autoRefresh cuando está oculto
     if (autoRefresh) {
       clearInterval(autoRefresh)
       autoRefresh = null
@@ -103,16 +154,9 @@ watch(() => props.activo, async (val) => {
   }
 })
 
+// ── Cuando cambia la vista, aplicar sin recargar datos ──────────
 watch(() => props.vistaActiva, (vista) => {
-  if (!map.value) return
-
-  if (vista === 'heatmap') {
-    if (markersLayer.value) map.value.removeLayer(markersLayer.value)
-    if (heatLayer.value) map.value.addLayer(heatLayer.value)
-  } else {
-    if (heatLayer.value) map.value.removeLayer(heatLayer.value)
-    if (markersLayer.value) map.value.addLayer(markersLayer.value)
-  }
+  aplicarVista(vista)
 })
 
 async function refrescarTodo() {
@@ -121,13 +165,19 @@ async function refrescarTodo() {
   info.value = "Actualizando..."
   map.value.closePopup()
 
-  const totalMarkers = await cargarIncidencias(tipo, minutos)
-  await cargarPatrullasVisual()
+  // Cargar datos según la vista activa
+  let totalMarkers = 0
 
-  // SOLO cargar lo que corresponde a la vista activa
   if (props.vistaActiva === 'heatmap') {
+    totalMarkers = await cargarIncidencias(tipo, minutos)   // heatmap usa los mismos datos
     await cargarHeatmap(minutos.value)
+  } else if (props.vistaActiva === 'cluster') {
+    totalMarkers = await cargarIncidenciasCluster(tipo, minutos)
+  } else {
+    totalMarkers = await cargarIncidencias(tipo, minutos)
   }
+
+  await cargarPatrullasVisual()
 
   info.value = `
     Incidencias: ${totalMarkers}<br>
@@ -138,16 +188,15 @@ async function refrescarTodo() {
 onMounted(() => {
   const stop = watch(map, async (nuevoMapa) => {
     if (nuevoMapa) {
-      if (props.vistaActiva === 'heatmap') {
-  if (markersLayer.value) markersLayer.value.remove()
-  if (heatLayer.value) heatLayer.value.addTo(map.value)
-} else {
-  if (heatLayer.value) heatLayer.value.remove()
-  if (markersLayer.value) markersLayer.value.addTo(map.value)
-}
       stop()
 
-      // Cierra popups antes del zoom para evitar error
+      // Inicializar el cluster group una vez que el mapa existe  ← NUEVO
+      inicializarCluster()
+
+      // Aplicar la vista inicial correcta
+      aplicarVista(props.vistaActiva)
+
+      // Cerrar popups antes del zoom
       nuevoMapa.on("zoomstart", () => {
         nuevoMapa.closePopup()
 
@@ -164,16 +213,11 @@ onMounted(() => {
         }
       })
 
-      // FIX: si ya es visible al montar (ej: es el mapa por defecto),
-      // cargar todo inmediatamente. Si no, el watch de "activo" lo hará
-      // cuando el usuario navegue a este mapa.
       if (props.activo) {
         await refrescarTodo()
         autoRefresh = setInterval(refrescarTodo, 10000)
       }
     }
-
-    
   }, { immediate: true })
 })
 
@@ -186,17 +230,12 @@ onBeforeUnmount(() => {
   if (map.value) {
     map.value.closePopup()
 
-    if (markersLayer.value) {
-      markersLayer.value.clearLayers()
-    }
+    if (markersLayer.value) markersLayer.value.clearLayers()
+    if (patrullasLayer.value) patrullasLayer.value.clearLayers()
 
-    if (patrullasLayer.value) {
-      patrullasLayer.value.clearLayers()
-    }
+    destruirCluster()   // ← NUEVO: limpiar el cluster al desmontar
 
-    if (hayRuta.value) {
-      quitarRuta()
-    }
+    if (hayRuta.value) quitarRuta()
 
     map.value.off()
     map.value.remove()
@@ -295,7 +334,6 @@ onBeforeUnmount(() => {
   border: none;
 }
 
-/* BASE */
 .patrulla {
   width: 20px;
   height: 20px;
@@ -303,7 +341,6 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/*  DISPONIBLE (con pulso tipo radar) */
 .patrulla-disponible {
   background: #054dc1;
 }
@@ -320,7 +357,6 @@ onBeforeUnmount(() => {
   left: 0;
 }
 
-/* 🟠 ATENDIENDO (pulso más lento y suave) */
 .patrulla-atendiendo {
   background: #808080;
 }
@@ -337,13 +373,11 @@ onBeforeUnmount(() => {
   left: 0;
 }
 
-/* 🔵🔴 EN CAMINO (SIRENA REAL + PULSO) */
 .patrulla-en-camino {
   background: linear-gradient(90deg, red 50%, blue 50%);
   animation: sirenaColor 0.5s infinite;
 }
 
-/* pulso externo */
 .patrulla-en-camino::after {
   content: "";
   position: absolute;
@@ -356,51 +390,27 @@ onBeforeUnmount(() => {
   left: 0;
 }
 
-/* 🔴🔵 CAMBIO DE COLOR tipo sirena */
 @keyframes sirenaColor {
-  0% {
-    background: red;
-    box-shadow: 0 0 12px red;
-  }
-  50% {
-    background: blue;
-    box-shadow: 0 0 12px blue;
-  }
-  100% {
-    background: red;
-    box-shadow: 0 0 12px red;
-  }
+  0%   { background: red;  box-shadow: 0 0 12px red;  }
+  50%  { background: blue; box-shadow: 0 0 12px blue; }
+  100% { background: red;  box-shadow: 0 0 12px red;  }
 }
 
-/* 💚 Pulso rápido */
 @keyframes pulso {
-  0% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-  70% {
-    transform: scale(2.2);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(2.2); opacity: 0;   }
+  100% { transform: scale(1);   opacity: 0;   }
 }
 
-/* 🟠 Pulso lento */
 @keyframes pulso-lento {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  70% {
-    transform: scale(2.5);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%  { transform: scale(2.5); opacity: 0;   }
+  100% { transform: scale(1);   opacity: 0;   }
+}
+
+
+#app {
+  height: 100vh;
+  position: relative;
 }
 </style>

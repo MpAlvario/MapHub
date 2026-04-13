@@ -63,7 +63,7 @@ export default {
 <style scoped>
 .legend {
   position: absolute;
-  bottom: 20px;
+  bottom: 35px;
   left: 20px;
   background: white;
   padding: 12px 14px;
@@ -72,7 +72,7 @@ export default {
   font-size: 15px;
   color: #333;
   min-width: 180px;
-   z-index: 1000; 
+  z-index: 1000; 
 }
 
 .legend h4 {

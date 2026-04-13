@@ -6,6 +6,7 @@
       v-model:mapaSeleccionado="mapaSeleccionado"
       v-model:panelActivo="panelActivo"
       v-model:vistaActiva="vistaActiva"
+      v-model:dashboard-visible="dashboardVisible"
     />
 
     <!-- MAPA MÉXICO -->
@@ -27,6 +28,8 @@
       :activo="mapaSeleccionado === 'rutas'"
       :panelActivo="panelActivo"
       :vistaActiva="vistaActiva"
+      v-model:dashboard-visible="dashboardVisible"
+      @update:dashboard-visible="dashboardVisible = $event"
     />
 
     <!-- LEYENDA SOLO PARA MÉXICO -->
@@ -35,6 +38,12 @@
       :percentiles="percentiles"
       :opcion="opcionSeleccionada"
     />
+
+   <!-- Graficas -->
+     <DashboardModal
+      v-model:visible="dashboardVisible"
+    />
+
 
   </div>
 </template>
@@ -45,6 +54,8 @@ import MexicoMap from './components/MexicoMap.vue'
 import MonitoreoMap from './components/MonitoreoMap.vue'
 import Navbar from './components/navbar.vue'
 import PopulationLegend from './components/PopulationLegend.vue'
+import DashboardModal from './components/DashboardModal.vue'
+
 
 export default {
   components: {
@@ -52,7 +63,8 @@ export default {
     MonitoreoMap,
     MapaRutas,
     Navbar,
-    PopulationLegend
+    PopulationLegend,
+    DashboardModal
   },
 
   data() {
@@ -61,7 +73,8 @@ export default {
       mapaSeleccionado: 'mexico',
       percentiles: null,
       panelActivo:null,
-      vistaActiva:null
+      vistaActiva:'markers', //antes estaba null
+      dashboardVisible: false 
 
     }
   }

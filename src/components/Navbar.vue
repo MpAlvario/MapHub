@@ -51,6 +51,16 @@
           <span class="btn-arrow">▼</span>
         </button>
 
+        <!--  Botón Estadísticas (nuevo) -->
+        <button
+          class="nav-btn"
+          :class="{ active: dashboardVisible }"
+          @click="$emit('update:dashboardVisible', !dashboardVisible)"
+        >
+          📊
+          <span class="btn-arrow">▼</span>
+        </button>
+
         <!-- Botón + con dropdown -->
         <div class="dropdown-wrapper" ref="dropdownRef">
           <button
@@ -88,12 +98,13 @@
               </button>
 
               <button
-                class="dropdown-item disabled"
-                disabled
+                class="dropdown-item"
+                :class="{ selected: vistaActiva === 'cluster' }"
+                @click="seleccionarVista('cluster')"
               >
                 <span class="item-icon">🔵</span>
                 <span>Clusters</span>
-                <span class="coming-soon">Próximamente</span>
+                <span v-if="vistaActiva === 'cluster'" class="check">✓</span>
               </button>
             </div>
           </transition>
@@ -103,6 +114,9 @@
     </div>
 
   </nav>
+
+  <!-- Barra azul inferior -->
+  <div class="bottom-bar"></div>
 </template>
 
 <script>
@@ -110,17 +124,19 @@ export default {
   name: 'Navbar',
 
   props: {
-    modelValue: { type: String, required: true },
-    mapaSeleccionado: { type: String, required: true },
-    panelActivo: { type: String, default: null },
-    vistaActiva: { type: String, default: 'markers' }
+    modelValue:       { type: String,  required: true },
+    mapaSeleccionado: { type: String,  required: true },
+    panelActivo:      { type: String,  default: null  },
+    vistaActiva:      { type: String,  default: 'markers' },
+    dashboardVisible: { type: Boolean, default: false },   //  nuevo prop
   },
 
   emits: [
     'update:modelValue',
     'update:mapaSeleccionado',
     'update:panelActivo',
-    'update:vistaActiva'
+    'update:vistaActiva',
+    'update:dashboardVisible',   //  nuevo emit
   ],
 
   data() {
@@ -138,8 +154,8 @@ export default {
 
     emitMapChange() {
       this.$emit('update:mapaSeleccionado', this.localMap)
-      // Cerrar paneles al cambiar de mapa
       this.$emit('update:panelActivo', null)
+      this.$emit('update:dashboardVisible', false)   // cerrar dashboard al cambiar mapa
       this.dropdownAbierto = false
     },
 
@@ -191,12 +207,10 @@ export default {
   z-index: 10000;
 }
 
-/* ZONAS */
 .left  { width: 30%; display: flex; align-items: center; gap: 12px; }
 .center { width: 40%; text-align: center; }
 .right { width: 30%; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 
-/* LOGO */
 .navbar-logo {
   height: 76px;
   width: auto;
@@ -211,10 +225,8 @@ export default {
   transform: scale(1.06);
 }
 
-/* TITULO */
 .center h2 { margin: 0; font-size: 20px; font-weight: 600; }
 
-/* SELECT (México) */
 .Navbar select {
   padding: 10px 42px 10px 16px;
   border-radius: 30px;
@@ -242,14 +254,12 @@ export default {
   box-shadow: 0 0 0 2px rgba(27,94,32,0.25), 0 6px 16px rgba(0,0,0,0.2);
 }
 
-/* CONTROLES RUTAS */
 .rutas-controls {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* BOTONES NAV */
 .nav-btn {
   display: flex;
   align-items: center;
@@ -287,10 +297,7 @@ export default {
   opacity: 0.6;
 }
 
-/* DROPDOWN */
-.dropdown-wrapper {
-  position: relative;
-}
+.dropdown-wrapper { position: relative; }
 
 .dropdown-menu {
   position: absolute;
@@ -364,9 +371,22 @@ export default {
   font-weight: 600;
 }
 
-/* ANIMACIÓN DROPDOWN */
 .slide-down-enter-active { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 .slide-down-leave-active { transition: all 0.15s ease-in; }
 .slide-down-enter-from  { opacity: 0; transform: translateY(-8px) scale(0.97); }
 .slide-down-leave-to    { opacity: 0; transform: translateY(-4px) scale(0.98); }
+
+.bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 25px;
+  background: rgba(5, 25, 55, 0.80);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 -8px 25px rgba(0,0,0,0.35);
+  z-index: 10000;
+}
 </style>

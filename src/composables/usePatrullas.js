@@ -54,7 +54,6 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
         patrullasLayer.value.removeLayer(layer)
       })
 
-      //  CREAR marker inmediatamente (FIX delay)
       const marker = L.marker([latOrigen, lngOrigen], {
         icon: crearIconoPatrulla("En camino"),
         patrullaId: String(patrulla.id),
@@ -64,6 +63,10 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
         .addTo(patrullasLayer.value)
 
       animacionesActivas.add(String(patrulla.id))
+
+      console.log("ORIGEN:", latOrigen, lngOrigen)
+      console.log("DESTINO:", latIncidencia, lngIncidencia)
+      
 
       const resRuta = await fetch("http://192.168.71.200:8080/terrestre/api_ruta.php", {
         method: "POST",
@@ -77,6 +80,9 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
       })
 
       const dataRuta = await resRuta.json()
+
+      console.log("RESPUESTA RUTA:", dataRuta)
+
       if (!dataRuta.routes || dataRuta.routes.length === 0) return alert("No se encontró ruta")
 
       const coordenadas = dataRuta.routes[0].geometry.coordinates
@@ -101,13 +107,17 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
         body: JSON.stringify({ id: incidenciaId })
       })
 
-      //  SOLO incidencias (FIX heatmap bug)
       onRefrescarIncidencias?.()
 
       rutaLayer.setStyle({ color: "#10b981", dashArray: null, opacity: 1 })
       marker.setIcon(crearIconoPatrulla("Atendiendo"))
       marker.getPopup().setContent(`<b>🚓 Patrulla ${patrulla.id}</b><br><span style="color:#10b981">Atendiendo incidencia...</span>`)
-      marker.openPopup()
+
+      setTimeout(() => {
+        if (marker && map.value) {
+          marker.openPopup()
+        }
+      }, 100)
 
       await esperar(3000)
 
@@ -147,7 +157,6 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
   async function cargarPatrullasVisual() {
     try {
 
-      //  NO refrescar mientras hay animación
       if (animacionesActivas.size > 0) return
 
       const res = await fetch("http://192.168.71.200:8080/terrestre/api_patrullas.php?ts=" + Date.now())
@@ -202,6 +211,12 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
 
   function moverMarcador(marker, coordenadas) {
     return new Promise((resolve) => {
+
+      // FIX REAL (solo una vez)
+      if (marker.isPopupOpen()) {
+        marker.closePopup()
+      }
+
       let i = 0
       let ultimoTiempo = null
       const intervalo = 120
@@ -211,9 +226,11 @@ export function useMapPatrullas(map, patrullasLayer, trazarRutaDesdePatrulla, on
         if (i >= coordenadas.length) { resolve(); return }
 
         if (!ultimoTiempo || timestamp - ultimoTiempo >= intervalo) {
+
           const [lng, lat] = coordenadas[i]
           marker.setLatLng([lat, lng])
           seguirMarcador(marker, map.value, 16)
+
           ultimoTiempo = timestamp
           i++
         }

@@ -18,7 +18,7 @@ function getColorByFeature(percentil,pop) {
          pop >percentil.p50  ? '#2171B5' :
          pop >percentil.p35  ? '#4292C6' :
          pop >percentil.p25  ? '#6BAED6' :
-                          '#C6DBEF'
+                               '#C6DBEF'
 }
 
 export default {
