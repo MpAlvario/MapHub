@@ -69,7 +69,7 @@ Seguimiento de personal, vehículos y recursos desplegados.
 <img width="921" height="330" alt="image" src="https://github.com/user-attachments/assets/680b7f85-b920-4d19-978c-71c2bfde58a9" />
 
 ### ⚙️ Instalación
-git clone https://github.com/TU_USUARIO/mapa-vue.git
+git clone https://github.com/MpAlvario/mapa-vue.git
 cd mapa-vue
 
 npm install
